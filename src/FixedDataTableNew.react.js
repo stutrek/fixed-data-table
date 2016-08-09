@@ -14,6 +14,7 @@
 /*eslint no-bitwise:1*/
 
 var React = require('React');
+var ReactDOM = require('react-dom');
 var ReactComponentWithPureRenderMixin = require('ReactComponentWithPureRenderMixin');
 var ReactWheelHandler = require('ReactWheelHandler');
 var Scrollbar = require('Scrollbar.react');
@@ -22,6 +23,9 @@ var FixedDataTableColumnResizeHandle = require('FixedDataTableColumnResizeHandle
 var FixedDataTableRow = require('FixedDataTableRow.react');
 var FixedDataTableScrollHelper = require('FixedDataTableScrollHelper');
 var FixedDataTableWidthHelper = require('FixedDataTableWidthHelper');
+
+var DOMMouseMoveTracker = require('DOMMouseMoveTracker');
+var requestAnimationFramePolyfill = require('requestAnimationFramePolyfill');
 
 var cx = require('cx');
 var debounceCore = require('debounceCore');
@@ -563,6 +567,7 @@ var FixedDataTable = React.createClass({
           cx('fixedDataTableLayout/main'),
           cx('public/fixedDataTable/main'),
         )}
+        onMouseDown={this._dragStart}
         onWheel={this._wheelHandler.onWheel}
         style={{height: state.height, width: state.width}}>
         <div
@@ -999,6 +1004,81 @@ var FixedDataTable = React.createClass({
 
       this._didScrollStop();
     }
+  },
+
+  _dragStart (event) {
+    var fixedColumnsWidth = this.state.bodyFixedColumns.reduce((acc, column) => acc + column.props.width, 0);
+    this.mouseMoveTracker = new DOMMouseMoveTracker(
+      this._drag,
+      this._dragEnd,
+      document.body
+    );
+
+    var container = ReactDOM.findDOMNode(this);
+    var boundary = container.getBoundingClientRect();
+    this.dragData = {
+      x: event.clientX - (boundary.left + fixedColumnsWidth),
+      y: event.clientY - (boundary.top + this.props.headerHeight),
+      fixedColumnsWidth
+    };
+
+    this.dragData.doScrollX = this.dragData.x > 0;
+    this.dragData.doScrollY = this.dragData.y > 0;
+
+    this.mouseMoveTracker.captureMouseMoves(event);
+  },
+
+  _drag (xDiff, yDiff) {
+    this.dragData.x += xDiff;
+    this.dragData.y += yDiff;
+
+    var newSpeed = {
+      x: 0,
+      y: 0
+    };
+
+    var widthWithoutFixed = (this.props.width - this.dragData.fixedColumnsWidth);
+    var heightWithoutHeader = (this.props.height - this.props.headerHeight);
+
+    if (this.dragData.doScrollX) {
+      if (this.dragData.x < 20) {
+        newSpeed.x = this.dragData.x - 21;
+      }
+      if (widthWithoutFixed - this.dragData.x < 20) {
+        newSpeed.x = 21 - (widthWithoutFixed - this.dragData.x);
+      }
+    }
+
+    if (this.dragData.doScrollY) {
+      if (this.dragData.y < 20) {
+        newSpeed.y = this.dragData.y - 21;
+      }
+      if (heightWithoutHeader - this.dragData.y < 20) {
+        newSpeed.y = 21 - (heightWithoutHeader - this.dragData.y);
+      }
+    }
+
+    this.dragScrollSpeed = newSpeed;
+
+    if (!this.dragScrolling && newSpeed.x || newSpeed.y) {
+      this.dragScrolling = true;
+
+      var dragScroll = () => {
+        if (this.dragScrolling) {
+          this._onWheel(this.dragScrollSpeed.x, this.dragScrollSpeed.y);
+          requestAnimationFramePolyfill(dragScroll);
+        }
+      };
+
+     dragScroll();
+    } else if (newSpeed.x === 0 && newSpeed.y === 0) {
+      this.dragScrolling = false;
+    }
+  },
+
+  _dragEnd () {
+    this.mouseMoveTracker.releaseMouseMoves();
+    this.dragScrolling = false;
   },
 
 

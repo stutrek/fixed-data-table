@@ -86,7 +86,6 @@ var FixedDataTableCellGroupImpl = React.createClass({
 
   _onColumnReorderMove (deltaX) {
     if (!this.curtain) {
-      console.log('adding curtain');
       var curtain = document.createElement('div');
       curtain.style.zIndex = 10000000;
       curtain.style.position = 'fixed';
@@ -134,7 +133,6 @@ var FixedDataTableCellGroupImpl = React.createClass({
   },
 
   _onColumnReorderEnd () {
-    console.log('done!');
     this.mouseMoveTracker.releaseMouseMoves();
     if (this.curtain) {
       var curtain = this.curtain;
