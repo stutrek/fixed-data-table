@@ -76,6 +76,8 @@ var FixedDataTableCellGroupImpl = React.createClass({
     );
     this.mouseMoveTracker.captureMouseMoves(event);
 
+    this.dragOffset = 0;
+
     this.setState({
       reorderColumnIndex: index,
       reorderColumnWidth: this.props.columns[index].props.width,
@@ -84,8 +86,14 @@ var FixedDataTableCellGroupImpl = React.createClass({
     });
   },
 
-  _onColumnReorderMove (deltaX) {
-    if (!this.curtain) {
+  componentWillReceiveProps (newProps) {
+    if (newProps.dragScrollX && newProps.dragScrollX !== this.props.dragScrollX) {
+      this._onColumnReorderMove(newProps.dragScrollX - this.props.dragScrollX, 0, true);
+    }
+  },
+
+  _onColumnReorderMove (deltaX, deltaY, isFromProps) {
+    if (!this.curtain && !isFromProps) {
       var curtain = document.createElement('div');
       curtain.style.zIndex = 10000000;
       curtain.style.position = 'fixed';
@@ -111,7 +119,7 @@ var FixedDataTableCellGroupImpl = React.createClass({
       return oldCurrentPosition;
     });
 
-    var reorderColumnLeft = lefts[reorderColumnIndex] + this.state.dragOffset;
+    var reorderColumnLeft = lefts[reorderColumnIndex] + this.dragOffset;
     var reorderColumnRight = reorderColumnLeft + reorderColumnWidth;
 
     var self = this;
@@ -124,9 +132,9 @@ var FixedDataTableCellGroupImpl = React.createClass({
       }
       return 0;
     });
-
+    this.dragOffset = this.dragOffset + deltaX;
     this.setState({
-      dragOffset: this.state.dragOffset + deltaX,
+      dragOffset: this.dragOffset,
       isInitialDrag: false,
       positionShifts: positionShifts
     });
@@ -134,14 +142,6 @@ var FixedDataTableCellGroupImpl = React.createClass({
 
   _onColumnReorderEnd () {
     this.mouseMoveTracker.releaseMouseMoves();
-    if (this.curtain) {
-      var curtain = this.curtain;
-      this.curtain = null;
-      // this stops the mouseUp from triggering a click event.
-      setTimeout(function () {
-        document.body.removeChild(curtain);
-      }, 100);
-    }
     var columnBeforeIndex, columnAfterIndex;
     var shifts = this.state.positionShifts.reduce(function (a, b) { return a + b; });
     if (shifts > 0) {
@@ -154,24 +154,36 @@ var FixedDataTableCellGroupImpl = React.createClass({
       columnAfterIndex = columnBeforeIndex + 1;
     }
 
-    if (columnBeforeIndex || columnAfterIndex) {
+    if ((columnBeforeIndex || columnAfterIndex) && this.curtain) {
       var columnBefore;
       var columnAfter;
-      var reorderColumn = this.props.columns[this.state.reorderColumnIndex].props.columnKey;
+      var reorderColumnIndex = this.state.reorderColumnIndex;
+      var reorderColumn = this.props.columns[reorderColumnIndex].props.columnKey;
+
       if (columnBeforeIndex !== -1) {
         columnBefore = this.props.columns[columnBeforeIndex].props.columnKey;
       }
       if (columnAfterIndex !== this.props.columns.length) {
         columnAfter = this.props.columns[columnAfterIndex].props.columnKey;
       }
+
       this.props.onColumnReorder({
         columnBefore,
         columnBeforeIndex,
         columnAfter,
         columnAfterIndex,
         reorderColumn,
-        reorderColumnIndex: this.state.reorderColumnIndex
+        reorderColumnIndex: reorderColumnIndex
       });
+
+    }
+    if (this.curtain) {
+      var curtain = this.curtain;
+      this.curtain = null;
+      // this stops the mouseUp from triggering a click event.
+      setTimeout(function () {
+        document.body.removeChild(curtain);
+      }, 100);
     }
 
     this.setState(this.getInitialState());
@@ -239,7 +251,6 @@ var FixedDataTableCellGroupImpl = React.createClass({
       zIndex: props.zIndex,
     };
     translateDOMPositionXY(style, -1 * DIR_SIGN * props.left, 0);
-
     return (
       <div
         className={cx('fixedDataTableCellGroupLayout/cellGroup')}

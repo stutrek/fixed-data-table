@@ -530,6 +530,8 @@ var FixedDataTable = React.createClass({
         scrollableColumns={state.headScrollableColumns}
         onColumnResize={this._onColumnResize}
         onColumnReorder={this.props.onColumnReorder}
+        dragScrollX={this.dragData ? this.dragData.totalX : 0}
+        dragScrollY={this.dragData ? this.dragData.totalY : 0}
       />;
 
     var topShadow;
@@ -567,10 +569,10 @@ var FixedDataTable = React.createClass({
           cx('fixedDataTableLayout/main'),
           cx('public/fixedDataTable/main'),
         )}
-        onMouseDown={this._dragStart}
         onWheel={this._wheelHandler.onWheel}
         style={{height: state.height, width: state.width}}>
         <div
+          onMouseDown={this._dragStart}
           className={cx('fixedDataTableLayout/rowsContainer')}
           style={{height: rowsContainerHeight, width: state.width}}>
           {dragKnob}
@@ -1019,7 +1021,9 @@ var FixedDataTable = React.createClass({
     this.dragData = {
       x: event.clientX - (boundary.left + fixedColumnsWidth),
       y: event.clientY - (boundary.top + this.props.headerHeight),
-      fixedColumnsWidth
+      fixedColumnsWidth,
+      totalX: 0,
+      totalY: 0
     };
 
     this.dragData.doScrollX = this.dragData.x > 0;
@@ -1066,6 +1070,8 @@ var FixedDataTable = React.createClass({
       var dragScroll = () => {
         if (this.dragScrolling) {
           this._onWheel(this.dragScrollSpeed.x, this.dragScrollSpeed.y);
+          this.dragData.totalX += this.dragScrollSpeed.x;
+          this.dragData.totalY += this.dragScrollSpeed.y;
           requestAnimationFramePolyfill(dragScroll);
         }
       };
@@ -1077,8 +1083,9 @@ var FixedDataTable = React.createClass({
   },
 
   _dragEnd () {
-    this.mouseMoveTracker.releaseMouseMoves();
     this.dragScrolling = false;
+    this.dragData = null;
+    this.mouseMoveTracker.releaseMouseMoves();
   },
 
 
@@ -1122,7 +1129,6 @@ var FixedDataTable = React.createClass({
   _didScrollStop() {
     if (this.isMounted() && this._isScrolling) {
       this._isScrolling = false;
-      this.setState({redraw: true});
       if (this.props.onScrollEnd) {
         this.props.onScrollEnd(this.state.scrollX, this.state.scrollY);
       }

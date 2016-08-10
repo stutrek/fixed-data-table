@@ -84,11 +84,6 @@ class DOMMouseMoveTracker {
       this._eventUpToken = null;
     }
 
-    if (this._animationFrameID !== null) {
-      cancelAnimationFramePolyfill(this._animationFrameID);
-      this._animationFrameID = null;
-    }
-
     if (this._isDragging) {
       this._isDragging = false;
       this._x = null;
@@ -113,6 +108,9 @@ class DOMMouseMoveTracker {
     this._deltaX += (x - this._x);
     this._deltaY += (y - this._y);
 
+    // Find a browser that sends mousemoves faster than it draws frames.
+    // otherwise you're delaying the UI by one frame and introducing
+    // significant complexity by making this async.
     // if (this._animationFrameID === null) {
     //   // The mouse may move faster then the animation frame does.
     //   // Use `requestAnimationFramePolyfill` to avoid over-updating.
@@ -137,10 +135,6 @@ class DOMMouseMoveTracker {
    * Calls onMoveEnd passed into constructor and updates internal state.
    */
   _onMouseUp() {
-    // console.log(this._animationFrameID);
-    // if (this._animationFrameID) {
-      this._didMouseMove();
-    // }
     this._onMoveEnd();
   }
 }

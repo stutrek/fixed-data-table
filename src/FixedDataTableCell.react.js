@@ -81,7 +81,8 @@ var FixedDataTableCell = React.createClass({
   shouldComponentUpdate(nextProps) {
     return (
       !nextProps.isScrolling ||
-      this.props.rowIndex !== nextProps.rowIndex
+      this.props.rowIndex !== nextProps.rowIndex ||
+      this.props.left !== nextProps.left
     );
   },
 

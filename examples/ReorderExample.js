@@ -28,7 +28,12 @@ var columnTitles = {
   'firstName': 'First Name',
   'lastName': 'Last Name',
   'sentence': 'Sentence',
-  'companyName': 'Company'
+  'companyName': 'Company',
+  'city': 'City',
+  'street': 'Street',
+  'zipCode': 'Zip Code',
+  'email': 'Email'
+
 };
 
 class ReorderExample extends React.Component {
@@ -41,13 +46,17 @@ class ReorderExample extends React.Component {
         firstName: 240,
         lastName: 150,
         sentence: 140,
-        companyName: 60,
+        companyName: 260,
       },
       columnOrder: [
         'firstName',
         'lastName',
         'sentence',
-        'companyName'
+        'companyName',
+        'city',
+        'street',
+        'zipCode',
+        'email'
       ],
     };
 
@@ -56,7 +65,6 @@ class ReorderExample extends React.Component {
   }
 
   _onColumnResizeEndCallback(newColumnWidth, columnKey) {
-    console.log('setting');
     this.setState(({columnWidths}) => ({
       columnWidths: {
         ...columnWidths,
@@ -105,7 +113,7 @@ class ReorderExample extends React.Component {
             header={<Cell onClick={cellClick}>{columnTitles[columnKey]}</Cell>}
             cell={<TextCell data={dataList} />}
             fixed={i === 0}
-            width={this.state.columnWidths[columnKey]}
+            width={this.state.columnWidths[columnKey] || 150}
             isResizable={true}
            />;
         })}

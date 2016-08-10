@@ -131,6 +131,8 @@ var FixedDataTableRowImpl = React.createClass({
         onColumnReorder={this.props.onColumnReorder}
         rowHeight={this.props.height}
         rowIndex={this.props.index}
+        dragScrollX={this.props.dragScrollX}
+        dragScrollY={this.props.dragScrollY}
       />;
 
     return (
