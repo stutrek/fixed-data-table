@@ -18,7 +18,7 @@
 		exports["FixedDataTable"] = factory(require("react"), require("react-dom"));
 	else
 		root["FixedDataTable"] = factory(root["React"], root["ReactDOM"]);
-})(this, function(__WEBPACK_EXTERNAL_MODULE_30__, __WEBPACK_EXTERNAL_MODULE_47__) {
+})(this, function(__WEBPACK_EXTERNAL_MODULE_30__, __WEBPACK_EXTERNAL_MODULE_32__) {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
@@ -771,18 +771,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 	var React = __webpack_require__(29);
-	var ReactComponentWithPureRenderMixin = __webpack_require__(32);
-	var ReactWheelHandler = __webpack_require__(33);
-	var Scrollbar = __webpack_require__(41);
+	var ReactDOM = __webpack_require__(32);
+	var ReactComponentWithPureRenderMixin = __webpack_require__(33);
+	var ReactWheelHandler = __webpack_require__(34);
+	var Scrollbar = __webpack_require__(42);
 	var FixedDataTableBufferedRows = __webpack_require__(55);
 	var FixedDataTableColumnResizeHandle = __webpack_require__(69);
 	var FixedDataTableRow = __webpack_require__(60);
 	var FixedDataTableScrollHelper = __webpack_require__(70);
 	var FixedDataTableWidthHelper = __webpack_require__(72);
 
+	var DOMMouseMoveTracker = __webpack_require__(43);
+	var requestAnimationFramePolyfill = __webpack_require__(40);
+
 	var cx = __webpack_require__(49);
 	var debounceCore = __webpack_require__(73);
-	var emptyFunction = __webpack_require__(34);
+	var emptyFunction = __webpack_require__(35);
 	var invariant = __webpack_require__(54);
 	var joinClasses = __webpack_require__(68);
 	var shallowEqual = __webpack_require__(74);
@@ -1238,7 +1242,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	      fixedColumns: state.headFixedColumns,
 	      scrollableColumns: state.headScrollableColumns,
 	      onColumnResize: this._onColumnResize,
-	      onColumnReorder: this.props.onColumnReorder
+	      onColumnReorder: this.props.onColumnReorder,
+	      dragScrollX: this.dragData ? this.dragData.totalX : 0,
+	      dragScrollY: this.dragData ? this.dragData.totalY : 0
 	    });
 
 	    var topShadow;
@@ -1266,6 +1272,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      React.createElement(
 	        'div',
 	        {
+	          onMouseDown: this._dragStart,
 	          className: cx('fixedDataTableLayout/rowsContainer'),
 	          style: { height: rowsContainerHeight, width: state.width } },
 	        dragKnob,
@@ -1627,6 +1634,86 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	  },
 
+	  _dragStart: function _dragStart(event) {
+	    var fixedColumnsWidth = this.state.bodyFixedColumns.reduce(function (acc, column) {
+	      return acc + column.props.width;
+	    }, 0);
+	    this.mouseMoveTracker = new DOMMouseMoveTracker(this._drag, this._dragEnd, document.body);
+
+	    var container = ReactDOM.findDOMNode(this);
+	    var boundary = container.getBoundingClientRect();
+	    this.dragData = {
+	      x: event.clientX - (boundary.left + fixedColumnsWidth),
+	      y: event.clientY - (boundary.top + this.props.headerHeight),
+	      fixedColumnsWidth: fixedColumnsWidth,
+	      totalX: 0,
+	      totalY: 0
+	    };
+
+	    this.dragData.doScrollX = this.dragData.x > 0;
+	    this.dragData.doScrollY = this.dragData.y > 0;
+
+	    this.mouseMoveTracker.captureMouseMoves(event);
+	  },
+
+	  _drag: function _drag(xDiff, yDiff) {
+	    var _this = this;
+
+	    this.dragData.x += xDiff;
+	    this.dragData.y += yDiff;
+
+	    var newSpeed = {
+	      x: 0,
+	      y: 0
+	    };
+
+	    var widthWithoutFixed = this.props.width - this.dragData.fixedColumnsWidth;
+	    var heightWithoutHeader = this.props.height - this.props.headerHeight;
+
+	    if (this.dragData.doScrollX) {
+	      if (this.dragData.x < 20) {
+	        newSpeed.x = this.dragData.x - 21;
+	      }
+	      if (widthWithoutFixed - this.dragData.x < 20) {
+	        newSpeed.x = 21 - (widthWithoutFixed - this.dragData.x);
+	      }
+	    }
+
+	    if (this.dragData.doScrollY) {
+	      if (this.dragData.y < 20) {
+	        newSpeed.y = this.dragData.y - 21;
+	      }
+	      if (heightWithoutHeader - this.dragData.y < 20) {
+	        newSpeed.y = 21 - (heightWithoutHeader - this.dragData.y);
+	      }
+	    }
+
+	    this.dragScrollSpeed = newSpeed;
+
+	    if (!this.dragScrolling && newSpeed.x || newSpeed.y) {
+	      this.dragScrolling = true;
+
+	      var dragScroll = function dragScroll() {
+	        if (_this.dragScrolling) {
+	          _this._onWheel(_this.dragScrollSpeed.x, _this.dragScrollSpeed.y);
+	          _this.dragData.totalX += _this.dragScrollSpeed.x;
+	          _this.dragData.totalY += _this.dragScrollSpeed.y;
+	          requestAnimationFramePolyfill(dragScroll);
+	        }
+	      };
+
+	      dragScroll();
+	    } else if (newSpeed.x === 0 && newSpeed.y === 0) {
+	      this.dragScrolling = false;
+	    }
+	  },
+
+	  _dragEnd: function _dragEnd() {
+	    this.dragScrolling = false;
+	    this.dragData = null;
+	    this.mouseMoveTracker.releaseMouseMoves();
+	  },
+
 	  _onHorizontalScroll: function _onHorizontalScroll( /*number*/scrollPos) {
 	    if (this.isMounted() && scrollPos !== this.state.scrollX) {
 	      if (!this._isScrolling) {
@@ -1667,7 +1754,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	  _didScrollStop: function _didScrollStop() {
 	    if (this.isMounted() && this._isScrolling) {
 	      this._isScrolling = false;
-	      this.setState({ redraw: true });
 	      if (this.props.onScrollEnd) {
 	        this.props.onScrollEnd(this.state.scrollX, this.state.scrollY);
 	      }
@@ -1724,6 +1810,12 @@ return /******/ (function(modules) { // webpackBootstrap
 
 /***/ },
 /* 32 */
+/***/ function(module, exports) {
+
+	module.exports = __WEBPACK_EXTERNAL_MODULE_32__;
+
+/***/ },
+/* 33 */
 /***/ function(module, exports) {
 
 	/**
@@ -1799,7 +1891,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = ReactComponentWithPureRenderMixin;
 
 /***/ },
-/* 33 */
+/* 34 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -1823,9 +1915,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-	var emptyFunction = __webpack_require__(34);
-	var normalizeWheel = __webpack_require__(35);
-	var requestAnimationFramePolyfill = __webpack_require__(39);
+	var emptyFunction = __webpack_require__(35);
+	var normalizeWheel = __webpack_require__(36);
+	var requestAnimationFramePolyfill = __webpack_require__(40);
 
 	var ReactWheelHandler = (function () {
 	  /**
@@ -1909,7 +2001,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = ReactWheelHandler;
 
 /***/ },
-/* 34 */
+/* 35 */
 /***/ function(module, exports) {
 
 	/**
@@ -1952,7 +2044,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = emptyFunction;
 
 /***/ },
-/* 35 */
+/* 36 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -1969,9 +2061,9 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var UserAgent_DEPRECATED = __webpack_require__(36);
+	var UserAgent_DEPRECATED = __webpack_require__(37);
 
-	var isEventSupported = __webpack_require__(37);
+	var isEventSupported = __webpack_require__(38);
 
 	// Reasonable defaults
 	var PIXEL_STEP = 10;
@@ -2153,7 +2245,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = normalizeWheel;
 
 /***/ },
-/* 36 */
+/* 37 */
 /***/ function(module, exports) {
 
 	/**
@@ -2436,7 +2528,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = UserAgent_DEPRECATED;
 
 /***/ },
-/* 37 */
+/* 38 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -2452,7 +2544,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var ExecutionEnvironment = __webpack_require__(38);
+	var ExecutionEnvironment = __webpack_require__(39);
 
 	var useHasFeature;
 	if (ExecutionEnvironment.canUseDOM) {
@@ -2501,7 +2593,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = isEventSupported;
 
 /***/ },
-/* 38 */
+/* 39 */
 /***/ function(module, exports) {
 
 	/**
@@ -2544,7 +2636,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = ExecutionEnvironment;
 
 /***/ },
-/* 39 */
+/* 40 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/**
@@ -2560,8 +2652,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var emptyFunction = __webpack_require__(34);
-	var nativeRequestAnimationFrame = __webpack_require__(40);
+	var emptyFunction = __webpack_require__(35);
+	var nativeRequestAnimationFrame = __webpack_require__(41);
 
 	var lastTime = 0;
 
@@ -2585,7 +2677,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 40 */
+/* 41 */
 /***/ function(module, exports) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/**
@@ -2607,7 +2699,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 41 */
+/* 42 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -2624,16 +2716,16 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var DOMMouseMoveTracker = __webpack_require__(42);
-	var Keys = __webpack_require__(45);
+	var DOMMouseMoveTracker = __webpack_require__(43);
+	var Keys = __webpack_require__(46);
 	var React = __webpack_require__(29);
-	var ReactDOM = __webpack_require__(46);
-	var ReactComponentWithPureRenderMixin = __webpack_require__(32);
-	var ReactWheelHandler = __webpack_require__(33);
+	var ReactDOM = __webpack_require__(47);
+	var ReactComponentWithPureRenderMixin = __webpack_require__(33);
+	var ReactWheelHandler = __webpack_require__(34);
 
 	var cssVar = __webpack_require__(48);
 	var cx = __webpack_require__(49);
-	var emptyFunction = __webpack_require__(34);
+	var emptyFunction = __webpack_require__(35);
 	var translateDOMPositionXY = __webpack_require__(50);
 
 	var PropTypes = React.PropTypes;
@@ -3059,7 +3151,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = Scrollbar;
 
 /***/ },
-/* 42 */
+/* 43 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -3087,10 +3179,10 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-	var EventListener = __webpack_require__(43);
+	var EventListener = __webpack_require__(44);
 
-	var cancelAnimationFramePolyfill = __webpack_require__(44);
-	var requestAnimationFramePolyfill = __webpack_require__(39);
+	var cancelAnimationFramePolyfill = __webpack_require__(45);
+	var requestAnimationFramePolyfill = __webpack_require__(40);
 
 	var DOMMouseMoveTracker = (function () {
 	  /**
@@ -3152,11 +3244,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this._eventUpToken = null;
 	      }
 
-	      if (this._animationFrameID !== null) {
-	        cancelAnimationFramePolyfill(this._animationFrameID);
-	        this._animationFrameID = null;
-	      }
-
 	      if (this._isDragging) {
 	        this._isDragging = false;
 	        this._x = null;
@@ -3185,6 +3272,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	      this._deltaX += x - this._x;
 	      this._deltaY += y - this._y;
 
+	      // Find a browser that sends mousemoves faster than it draws frames.
+	      // otherwise you're delaying the UI by one frame and introducing
+	      // significant complexity by making this async.
 	      // if (this._animationFrameID === null) {
 	      //   // The mouse may move faster then the animation frame does.
 	      //   // Use `requestAnimationFramePolyfill` to avoid over-updating.
@@ -3212,10 +3302,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }, {
 	    key: '_onMouseUp',
 	    value: function _onMouseUp() {
-	      // console.log(this._animationFrameID);
-	      // if (this._animationFrameID) {
-	      this._didMouseMove();
-	      // }
 	      this._onMoveEnd();
 	    }
 	  }]);
@@ -3226,7 +3312,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = DOMMouseMoveTracker;
 
 /***/ },
-/* 43 */
+/* 44 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -3243,7 +3329,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var emptyFunction = __webpack_require__(34);
+	var emptyFunction = __webpack_require__(35);
 
 	/**
 	 * Upstream version of event listener. Does not take into account specific
@@ -3308,7 +3394,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	module.exports = EventListener;
 
 /***/ },
-/* 44 */
+/* 45 */
 /***/ function(module, exports) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/**
@@ -3334,7 +3420,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 45 */
+/* 46 */
 /***/ function(module, exports) {
 
 	/**
@@ -3376,7 +3462,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	};
 
 /***/ },
-/* 46 */
+/* 47 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -3392,13 +3478,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	module.exports = __webpack_require__(47);
-
-/***/ },
-/* 47 */
-/***/ function(module, exports) {
-
-	module.exports = __WEBPACK_EXTERNAL_MODULE_47__;
+	module.exports = __webpack_require__(32);
 
 /***/ },
 /* 48 */
@@ -3627,7 +3707,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var ExecutionEnvironment = __webpack_require__(38);
+	var ExecutionEnvironment = __webpack_require__(39);
 
 	var camelize = __webpack_require__(53);
 	var invariant = __webpack_require__(54);
@@ -3780,7 +3860,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	var FixedDataTableRow = __webpack_require__(60);
 
 	var cx = __webpack_require__(49);
-	var emptyFunction = __webpack_require__(34);
+	var emptyFunction = __webpack_require__(35);
 	var joinClasses = __webpack_require__(68);
 	var translateDOMPositionXY = __webpack_require__(50);
 
@@ -4588,7 +4668,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	      onColumnResize: this.props.onColumnResize,
 	      onColumnReorder: this.props.onColumnReorder,
 	      rowHeight: this.props.height,
-	      rowIndex: this.props.index
+	      rowIndex: this.props.index,
+	      dragScrollX: this.props.dragScrollX,
+	      dragScrollY: this.props.dragScrollY
 	    });
 
 	    return React.createElement(
@@ -4730,7 +4812,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
 
-	var DOMMouseMoveTracker = __webpack_require__(42);
+	var DOMMouseMoveTracker = __webpack_require__(43);
 
 	var FixedDataTableHelper = __webpack_require__(62);
 	var React = __webpack_require__(29);
@@ -4791,6 +4873,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    this.mouseMoveTracker = new DOMMouseMoveTracker(this._onColumnReorderMove, this._onColumnReorderEnd, document.body);
 	    this.mouseMoveTracker.captureMouseMoves(event);
 
+	    this.dragOffset = 0;
+
 	    this.setState({
 	      reorderColumnIndex: index,
 	      reorderColumnWidth: this.props.columns[index].props.width,
@@ -4799,9 +4883,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	    });
 	  },
 
-	  _onColumnReorderMove: function _onColumnReorderMove(deltaX) {
-	    if (!this.curtain) {
-	      console.log('adding curtain');
+	  componentWillReceiveProps: function componentWillReceiveProps(newProps) {
+	    if (newProps.dragScrollX && newProps.dragScrollX !== this.props.dragScrollX) {
+	      this._onColumnReorderMove(newProps.dragScrollX - this.props.dragScrollX, 0, true);
+	    }
+	  },
+
+	  _onColumnReorderMove: function _onColumnReorderMove(deltaX, deltaY, isFromProps) {
+	    if (!this.curtain && !isFromProps) {
 	      var curtain = document.createElement('div');
 	      curtain.style.zIndex = 10000000;
 	      curtain.style.position = 'fixed';
@@ -4827,7 +4916,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      return oldCurrentPosition;
 	    });
 
-	    var reorderColumnLeft = lefts[reorderColumnIndex] + this.state.dragOffset;
+	    var reorderColumnLeft = lefts[reorderColumnIndex] + this.dragOffset;
 	    var reorderColumnRight = reorderColumnLeft + reorderColumnWidth;
 
 	    var self = this;
@@ -4840,25 +4929,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	      }
 	      return 0;
 	    });
-
+	    this.dragOffset = this.dragOffset + deltaX;
 	    this.setState({
-	      dragOffset: this.state.dragOffset + deltaX,
+	      dragOffset: this.dragOffset,
 	      isInitialDrag: false,
 	      positionShifts: positionShifts
 	    });
 	  },
 
 	  _onColumnReorderEnd: function _onColumnReorderEnd() {
-	    console.log('done!');
 	    this.mouseMoveTracker.releaseMouseMoves();
-	    if (this.curtain) {
-	      var curtain = this.curtain;
-	      this.curtain = null;
-	      // this stops the mouseUp from triggering a click event.
-	      setTimeout(function () {
-	        document.body.removeChild(curtain);
-	      }, 100);
-	    }
 	    var columnBeforeIndex, columnAfterIndex;
 	    var shifts = this.state.positionShifts.reduce(function (a, b) {
 	      return a + b;
@@ -4873,24 +4953,35 @@ return /******/ (function(modules) { // webpackBootstrap
 	      columnAfterIndex = columnBeforeIndex + 1;
 	    }
 
-	    if (columnBeforeIndex || columnAfterIndex) {
+	    if ((columnBeforeIndex || columnAfterIndex) && this.curtain) {
 	      var columnBefore;
 	      var columnAfter;
-	      var reorderColumn = this.props.columns[this.state.reorderColumnIndex].props.columnKey;
+	      var reorderColumnIndex = this.state.reorderColumnIndex;
+	      var reorderColumn = this.props.columns[reorderColumnIndex].props.columnKey;
+
 	      if (columnBeforeIndex !== -1) {
 	        columnBefore = this.props.columns[columnBeforeIndex].props.columnKey;
 	      }
 	      if (columnAfterIndex !== this.props.columns.length) {
 	        columnAfter = this.props.columns[columnAfterIndex].props.columnKey;
 	      }
+
 	      this.props.onColumnReorder({
 	        columnBefore: columnBefore,
 	        columnBeforeIndex: columnBeforeIndex,
 	        columnAfter: columnAfter,
 	        columnAfterIndex: columnAfterIndex,
 	        reorderColumn: reorderColumn,
-	        reorderColumnIndex: this.state.reorderColumnIndex
+	        reorderColumnIndex: reorderColumnIndex
 	      });
+	    }
+	    if (this.curtain) {
+	      var curtain = this.curtain;
+	      this.curtain = null;
+	      // this stops the mouseUp from triggering a click event.
+	      setTimeout(function () {
+	        document.body.removeChild(curtain);
+	      }, 100);
 	    }
 
 	    this.setState(this.getInitialState());
@@ -4949,7 +5040,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	      zIndex: props.zIndex
 	    };
 	    translateDOMPositionXY(style, -1 * DIR_SIGN * props.left, 0);
-
 	    return React.createElement(
 	      'div',
 	      {
@@ -5386,7 +5476,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  },
 
 	  shouldComponentUpdate: function shouldComponentUpdate(nextProps) {
-	    return !nextProps.isScrolling || this.props.rowIndex !== nextProps.rowIndex;
+	    return !nextProps.isScrolling || this.props.rowIndex !== nextProps.rowIndex || this.props.left !== nextProps.left;
 	  },
 
 	  getDefaultProps: function getDefaultProps() /*object*/{
@@ -5667,10 +5757,10 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var DOMMouseMoveTracker = __webpack_require__(42);
+	var DOMMouseMoveTracker = __webpack_require__(43);
 	var Locale = __webpack_require__(63);
 	var React = __webpack_require__(29);
-	var ReactComponentWithPureRenderMixin = __webpack_require__(32);
+	var ReactComponentWithPureRenderMixin = __webpack_require__(33);
 
 	var clamp = __webpack_require__(59);
 	var cx = __webpack_require__(49);
