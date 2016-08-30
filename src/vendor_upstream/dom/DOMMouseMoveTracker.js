@@ -117,16 +117,16 @@ class DOMMouseMoveTracker {
     //   this._animationFrameID =
     //     requestAnimationFramePolyfill();
     // }
-    this._didMouseMove();
+    this._didMouseMove(event);
 
     this._x = x;
     this._y = y;
     event.preventDefault();
   }
 
-  _didMouseMove() {
+  _didMouseMove(event) {
     this._animationFrameID = null;
-    this._onMove(this._deltaX, this._deltaY);
+    this._onMove(this._deltaX, this._deltaY, event.clientX, event.clientY);
     this._deltaX = 0;
     this._deltaY = 0;
   }

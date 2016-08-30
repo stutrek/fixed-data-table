@@ -16,6 +16,7 @@ var DOMMouseMoveTracker = require('DOMMouseMoveTracker');
 
 var FixedDataTableHelper = require('FixedDataTableHelper');
 var React = require('React');
+var ReactDOM = require('react-dom');
 var FixedDataTableCell = require('FixedDataTableCell.react');
 
 var cx = require('cx');
@@ -65,6 +66,12 @@ var FixedDataTableCellGroupImpl = React.createClass({
     zIndex: PropTypes.number.isRequired,
   },
 
+  componentWillReceiveProps (newProps) {
+    if (newProps.dragScrollX && newProps.dragScrollX !== this.props.dragScrollX) {
+      this._onColumnReorderMove(newProps.dragScrollX - this.props.dragScrollX, 0, null, null, true);
+    }
+  },
+
   _onColumnReorderStart (index, event) {
     if (event.isDefaultPrevented()) {
       return;
@@ -72,27 +79,41 @@ var FixedDataTableCellGroupImpl = React.createClass({
     this.mouseMoveTracker = new DOMMouseMoveTracker(
       this._onColumnReorderMove,
       this._onColumnReorderEnd,
-      document.body
+      window
     );
     this.mouseMoveTracker.captureMouseMoves(event);
 
     this.dragOffset = 0;
+    this.startingX = event.clientX;
+
+    var boundaryNode = ReactDOM.findDOMNode(this);
+    var className = cx('fixedDataTableLayout/header');
+    while (boundaryNode.classList.contains(className) === false) {
+      boundaryNode = boundaryNode.parentNode;
+    }
 
     this.setState({
       reorderColumnIndex: index,
       reorderColumnWidth: this.props.columns[index].props.width,
       dragOffset: 0,
+      boundary: boundaryNode.getBoundingClientRect(),
       isInitialDrag: true
     });
   },
 
-  componentWillReceiveProps (newProps) {
-    if (newProps.dragScrollX && newProps.dragScrollX !== this.props.dragScrollX) {
-      this._onColumnReorderMove(newProps.dragScrollX - this.props.dragScrollX, 0, true);
-    }
-  },
+  _onColumnReorderMove (deltaX, deltaY, x, y, isFromProps) {
+    // console.log('_onColumnReorderMove', deltaX, deltaY, this.props);
 
-  _onColumnReorderMove (deltaX, deltaY, isFromProps) {
+    // console.log(event && event.clientX, this.state.boundary);
+    if (x && x > this.state.boundary.right) {
+      console.log('returning, to the right');
+      return;
+    }
+    if (x && x < this.state.boundary.left) {
+      console.log('returning, to the left');
+      return;
+    }
+
     if (!this.curtain && !isFromProps) {
       var curtain = document.createElement('div');
       curtain.style.zIndex = 10000000;
@@ -108,6 +129,14 @@ var FixedDataTableCellGroupImpl = React.createClass({
       curtain.className = cx('fixedDataTable/columnReorderCurtain');
       document.body.appendChild(curtain);
       this.curtain = curtain;
+    }
+    if (this.dragFromScroll === undefined) {
+      this.dragFromScroll = 0;
+    }
+
+    if (isFromProps) {
+      this.dragFromScroll += deltaX;
+      console.log('from scroll ', deltaX, deltaY);
     }
 
     var reorderColumnIndex = this.state.reorderColumnIndex;
@@ -132,7 +161,11 @@ var FixedDataTableCellGroupImpl = React.createClass({
       }
       return 0;
     });
-    this.dragOffset = this.dragOffset + deltaX;
+    if (x) {
+      this.dragOffset = x - this.startingX + this.dragFromScroll;
+    } else {
+      this.dragOffset = this.dragOffset + deltaX;
+    }
     this.setState({
       dragOffset: this.dragOffset,
       isInitialDrag: false,
@@ -185,7 +218,8 @@ var FixedDataTableCellGroupImpl = React.createClass({
         document.body.removeChild(curtain);
       }, 100);
     }
-
+    this.dragFromScroll = 0;
+    
     this.setState(this.getInitialState());
   },
 

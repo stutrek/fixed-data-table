@@ -78,18 +78,21 @@ class ReorderExample extends React.Component {
     var columnOrder = this.state.columnOrder.filter((columnKey) => {
       return columnKey !== event.reorderColumn;
     });
+    console.log(columnOrder.toString());
     if (event.columnAfter) {
       var index = columnOrder.indexOf(event.columnAfter);
       columnOrder.splice(index, 0, event.reorderColumn);
     } else {
       columnOrder.push(event.reorderColumn);
     }
+    console.log(columnOrder.toString());
     this.setState({
       columnOrder: columnOrder
     });
   }
 
   render() {
+    console.log('rendering', this.state.columnOrder.toString());
     var {dataList} = this.state;
 
     function cellClick (event) {
@@ -109,7 +112,7 @@ class ReorderExample extends React.Component {
         {this.state.columnOrder.map((columnKey, i) => {
           return <Column
             columnKey={columnKey}
-            key={i}
+            key={columnKey}
             header={<Cell onClick={cellClick}>{columnTitles[columnKey]}</Cell>}
             cell={<TextCell data={dataList} />}
             fixed={i === 0}

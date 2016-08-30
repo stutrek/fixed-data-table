@@ -133,6 +133,7 @@ var FixedDataTableRowImpl = React.createClass({
         rowIndex={this.props.index}
         dragScrollX={this.props.dragScrollX}
         dragScrollY={this.props.dragScrollY}
+        //dragScrollSpeed={this.props.dragScrollSpeed}
       />;
 
     return (
