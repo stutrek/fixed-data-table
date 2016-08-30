@@ -106,11 +106,11 @@ var FixedDataTableCellGroupImpl = React.createClass({
 
     // console.log(event && event.clientX, this.state.boundary);
     if (x && x > this.state.boundary.right) {
-      console.log('returning, to the right');
+      // console.log('returning, to the right');
       return;
     }
     if (x && x < this.state.boundary.left) {
-      console.log('returning, to the left');
+      // console.log('returning, to the left');
       return;
     }
 
@@ -136,7 +136,7 @@ var FixedDataTableCellGroupImpl = React.createClass({
 
     if (isFromProps) {
       this.dragFromScroll += deltaX;
-      console.log('from scroll ', deltaX, deltaY);
+      // console.log('from scroll ', deltaX, deltaY);
     }
 
     var reorderColumnIndex = this.state.reorderColumnIndex;
@@ -219,7 +219,7 @@ var FixedDataTableCellGroupImpl = React.createClass({
       }, 100);
     }
     this.dragFromScroll = 0;
-    
+
     this.setState(this.getInitialState());
   },
 

@@ -284,7 +284,7 @@ var FixedDataTable = React.createClass({
       this._scrollHelper.scrollTo(props.scrollTop);
     }
     this._didScrollStop = debounceCore(this._didScrollStop, 200, this);
-
+    this.scrollX = 0;
     return this._calculateState(this.props);
   },
 
@@ -978,8 +978,8 @@ var FixedDataTable = React.createClass({
 
   _onWheel(/*number*/ deltaX, /*number*/ deltaY) {
     var changes = {
-      x: false,
-      y: false
+      x: 0,
+      y: 0
     };
 
     if (this.isMounted()) {
@@ -994,7 +994,7 @@ var FixedDataTable = React.createClass({
           scrollState.contentHeight - this.state.bodyHeight
         );
         if (scrollState.position !== this.state.scrollY) {
-          changes.y = true;
+          changes.y = scrollState.position - this.state.scrollY;
         }
         this.setState({
           firstRowIndex: scrollState.index,
@@ -1004,15 +1004,16 @@ var FixedDataTable = React.createClass({
           maxScrollY: maxScrollY,
         });
       } else if (deltaX && this.props.overflowX !== 'hidden') {
-        var x = this.state.scrollX + deltaX;
+        var x = this.scrollX + deltaX;
         x = Math.max(0, x);
         x = Math.min(x, this.state.maxScrollX);
-        if (x !== this.state.scrollX) {
-          changes.x = true;
+        if (x !== this.scrollX) {
+          changes.x = x - this.scrollX;
+          this.scrollX = x;
+          this.setState({
+            scrollX: x,
+          });
         }
-        this.setState({
-          scrollX: x,
-        });
       }
 
       this._didScrollStop();
@@ -1063,6 +1064,8 @@ var FixedDataTable = React.createClass({
       if (widthWithoutFixed - this.dragData.x < 20) {
         newSpeed.x = 21 - (widthWithoutFixed - this.dragData.x);
       }
+      newSpeed.x = Math.max(newSpeed.x, -60);
+      newSpeed.x = Math.min(newSpeed.x, 60);
     }
 
     if (this.dragData.doScrollY) {
@@ -1072,6 +1075,8 @@ var FixedDataTable = React.createClass({
       if (heightWithoutHeader - this.dragData.y < 20) {
         newSpeed.y = 21 - (heightWithoutHeader - this.dragData.y);
       }
+      newSpeed.y = Math.max(newSpeed.y, -60);
+      newSpeed.y = Math.min(newSpeed.y, 60);
     }
 
     this.dragScrollSpeed = newSpeed;
@@ -1085,11 +1090,12 @@ var FixedDataTable = React.createClass({
       var dragScroll = () => {
         if (this.dragScrolling) {
           var changes = this._onWheel(this.dragScrollSpeed.x, this.dragScrollSpeed.y);
+          console.log(this.dragScrollSpeed.x, this.dragScrollSpeed.y, changes.x, changes.y);
           if (changes.x) {
-            this.dragData.totalX += this.dragScrollSpeed.x;
+            this.dragData.totalX += changes.x;
           }
           if (changes.y) {
-            this.dragData.totalY += this.dragScrollSpeed.y;
+            this.dragData.totalY += changes.y;
           }
           requestAnimationFramePolyfill(dragScroll);
         }
@@ -1109,10 +1115,11 @@ var FixedDataTable = React.createClass({
 
 
   _onHorizontalScroll(/*number*/ scrollPos) {
-    if (this.isMounted() && scrollPos !== this.state.scrollX) {
+    if (this.isMounted() && scrollPos !== this.scrollX) {
       if (!this._isScrolling) {
         this._didScrollStart();
       }
+      this.scrollX = scrollPos;
       this.setState({
         scrollX: scrollPos,
       });
