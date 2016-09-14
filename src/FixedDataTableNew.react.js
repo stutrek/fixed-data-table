@@ -995,14 +995,14 @@ var FixedDataTable = React.createClass({
         );
         if (scrollState.position !== this.state.scrollY) {
           changes.y = scrollState.position - this.state.scrollY;
+          this.setState({
+            firstRowIndex: scrollState.index,
+            firstRowOffset: scrollState.offset,
+            scrollY: scrollState.position,
+            scrollContentHeight: scrollState.contentHeight,
+            maxScrollY: maxScrollY,
+          });
         }
-        this.setState({
-          firstRowIndex: scrollState.index,
-          firstRowOffset: scrollState.offset,
-          scrollY: scrollState.position,
-          scrollContentHeight: scrollState.contentHeight,
-          maxScrollY: maxScrollY,
-        });
       } else if (deltaX && this.props.overflowX !== 'hidden') {
         var x = this.scrollX + deltaX;
         x = Math.max(0, x);
@@ -1090,7 +1090,6 @@ var FixedDataTable = React.createClass({
       var dragScroll = () => {
         if (this.dragScrolling) {
           var changes = this._onWheel(this.dragScrollSpeed.x, this.dragScrollSpeed.y);
-          console.log(this.dragScrollSpeed.x, this.dragScrollSpeed.y, changes.x, changes.y);
           if (changes.x) {
             this.dragData.totalX += changes.x;
           }

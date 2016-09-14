@@ -79,7 +79,7 @@ class ReorderExample extends React.Component {
       return columnKey !== event.reorderColumn;
     });
     console.log(columnOrder.toString());
-    if (event.columnAfter) {
+    if (event.columnAfter !== undefined) {
       var index = columnOrder.indexOf(event.columnAfter);
       columnOrder.splice(index, 0, event.reorderColumn);
     } else {

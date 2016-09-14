@@ -199,15 +199,20 @@ var FixedDataTableCellGroupImpl = React.createClass({
       if (columnAfterIndex !== this.props.columns.length) {
         columnAfter = this.props.columns[columnAfterIndex].props.columnKey;
       }
-
-      this.props.onColumnReorder({
-        columnBefore,
-        columnBeforeIndex,
-        columnAfter,
-        columnAfterIndex,
-        reorderColumn,
-        reorderColumnIndex: reorderColumnIndex
-      });
+      // I think the setState below needs to do something
+      // async before onColumnReorder is called. This
+      // seems to fix unusual rendering issues when the
+      // table is very heavy.
+      setTimeout(() => {
+        this.props.onColumnReorder({
+          columnBefore,
+          columnBeforeIndex,
+          columnAfter,
+          columnAfterIndex,
+          reorderColumn,
+          reorderColumnIndex: reorderColumnIndex
+        });
+      }, 4);
 
     }
     if (this.curtain) {

@@ -1034,7 +1034,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      this._scrollHelper.scrollTo(props.scrollTop);
 	    }
 	    this._didScrollStop = debounceCore(this._didScrollStop, 200, this);
-
+	    this.scrollX = 0;
 	    return this._calculateState(this.props);
 	  },
 
@@ -1154,8 +1154,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    var maxScrollY = this.state.maxScrollY;
-	    var showScrollbarX = state.maxScrollX > 0 && state.overflowX !== 'hidden';
-	    var showScrollbarY = maxScrollY > 0 && state.overflowY !== 'hidden';
+	    var showScrollbarX = this.showScrollbarX = state.maxScrollX > 0 && state.overflowX !== 'hidden';
+	    var showScrollbarY = this.showScrollbarY = maxScrollY > 0 && state.overflowY !== 'hidden';
 	    var scrollbarXHeight = showScrollbarX ? Scrollbar.SIZE : 0;
 	    var scrollbarYHeight = state.height - scrollbarXHeight - 2 * BORDER_HEIGHT - state.footerHeight;
 
@@ -1245,6 +1245,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      onColumnReorder: this.props.onColumnReorder,
 	      dragScrollX: this.dragData ? this.dragData.totalX : 0,
 	      dragScrollY: this.dragData ? this.dragData.totalY : 0
+	      //dragScrollSpeed={this.state.dragScrollSpeed}
 	    });
 
 	    var topShadow;
@@ -1606,39 +1607,51 @@ return /******/ (function(modules) { // webpackBootstrap
 	  },
 
 	  _onWheel: function _onWheel( /*number*/deltaX, /*number*/deltaY) {
+	    var changes = {
+	      x: 0,
+	      y: 0
+	    };
+
 	    if (this.isMounted()) {
 	      if (!this._isScrolling) {
 	        this._didScrollStart();
 	      }
-	      var x = this.state.scrollX;
 	      if (Math.abs(deltaY) > Math.abs(deltaX) && this.props.overflowY !== 'hidden') {
 	        var scrollState = this._scrollHelper.scrollBy(Math.round(deltaY));
 	        var maxScrollY = Math.max(0, scrollState.contentHeight - this.state.bodyHeight);
-	        this.setState({
-	          firstRowIndex: scrollState.index,
-	          firstRowOffset: scrollState.offset,
-	          scrollY: scrollState.position,
-	          scrollContentHeight: scrollState.contentHeight,
-	          maxScrollY: maxScrollY
-	        });
+	        if (scrollState.position !== this.state.scrollY) {
+	          changes.y = scrollState.position - this.state.scrollY;
+	          this.setState({
+	            firstRowIndex: scrollState.index,
+	            firstRowOffset: scrollState.offset,
+	            scrollY: scrollState.position,
+	            scrollContentHeight: scrollState.contentHeight,
+	            maxScrollY: maxScrollY
+	          });
+	        }
 	      } else if (deltaX && this.props.overflowX !== 'hidden') {
-	        x += deltaX;
-	        x = x < 0 ? 0 : x;
-	        x = x > this.state.maxScrollX ? this.state.maxScrollX : x;
-	        this.setState({
-	          scrollX: x
-	        });
+	        var x = this.scrollX + deltaX;
+	        x = Math.max(0, x);
+	        x = Math.min(x, this.state.maxScrollX);
+	        if (x !== this.scrollX) {
+	          changes.x = x - this.scrollX;
+	          this.scrollX = x;
+	          this.setState({
+	            scrollX: x
+	          });
+	        }
 	      }
 
 	      this._didScrollStop();
 	    }
+	    return changes;
 	  },
 
 	  _dragStart: function _dragStart(event) {
 	    var fixedColumnsWidth = this.state.bodyFixedColumns.reduce(function (acc, column) {
 	      return acc + column.props.width;
 	    }, 0);
-	    this.mouseMoveTracker = new DOMMouseMoveTracker(this._drag, this._dragEnd, document.body);
+	    this.mouseMoveTracker = new DOMMouseMoveTracker(this._drag, this._dragEnd, window);
 
 	    var container = ReactDOM.findDOMNode(this);
 	    var boundary = container.getBoundingClientRect();
@@ -1677,6 +1690,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	      if (widthWithoutFixed - this.dragData.x < 20) {
 	        newSpeed.x = 21 - (widthWithoutFixed - this.dragData.x);
 	      }
+	      newSpeed.x = Math.max(newSpeed.x, -60);
+	      newSpeed.x = Math.min(newSpeed.x, 60);
 	    }
 
 	    if (this.dragData.doScrollY) {
@@ -1686,18 +1701,27 @@ return /******/ (function(modules) { // webpackBootstrap
 	      if (heightWithoutHeader - this.dragData.y < 20) {
 	        newSpeed.y = 21 - (heightWithoutHeader - this.dragData.y);
 	      }
+	      newSpeed.y = Math.max(newSpeed.y, -60);
+	      newSpeed.y = Math.min(newSpeed.y, 60);
 	    }
 
 	    this.dragScrollSpeed = newSpeed;
+	    // this.setState({
+	    //   dragScrollSpeed: newSpeed
+	    // });
 
 	    if (!this.dragScrolling && newSpeed.x || newSpeed.y) {
 	      this.dragScrolling = true;
 
 	      var dragScroll = function dragScroll() {
 	        if (_this.dragScrolling) {
-	          _this._onWheel(_this.dragScrollSpeed.x, _this.dragScrollSpeed.y);
-	          _this.dragData.totalX += _this.dragScrollSpeed.x;
-	          _this.dragData.totalY += _this.dragScrollSpeed.y;
+	          var changes = _this._onWheel(_this.dragScrollSpeed.x, _this.dragScrollSpeed.y);
+	          if (changes.x) {
+	            _this.dragData.totalX += changes.x;
+	          }
+	          if (changes.y) {
+	            _this.dragData.totalY += changes.y;
+	          }
 	          requestAnimationFramePolyfill(dragScroll);
 	        }
 	      };
@@ -1715,10 +1739,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	  },
 
 	  _onHorizontalScroll: function _onHorizontalScroll( /*number*/scrollPos) {
-	    if (this.isMounted() && scrollPos !== this.state.scrollX) {
+	    if (this.isMounted() && scrollPos !== this.scrollX) {
 	      if (!this._isScrolling) {
 	        this._didScrollStart();
 	      }
+	      this.scrollX = scrollPos;
 	      this.setState({
 	        scrollX: scrollPos
 	      });
@@ -3281,7 +3306,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      //   this._animationFrameID =
 	      //     requestAnimationFramePolyfill();
 	      // }
-	      this._didMouseMove();
+	      this._didMouseMove(event);
 
 	      this._x = x;
 	      this._y = y;
@@ -3289,9 +3314,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	  }, {
 	    key: '_didMouseMove',
-	    value: function _didMouseMove() {
+	    value: function _didMouseMove(event) {
 	      this._animationFrameID = null;
-	      this._onMove(this._deltaX, this._deltaY);
+	      this._onMove(this._deltaX, this._deltaY, event.clientX, event.clientY);
 	      this._deltaX = 0;
 	      this._deltaY = 0;
 	    }
@@ -4671,6 +4696,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      rowIndex: this.props.index,
 	      dragScrollX: this.props.dragScrollX,
 	      dragScrollY: this.props.dragScrollY
+	      //dragScrollSpeed={this.props.dragScrollSpeed}
 	    });
 
 	    return React.createElement(
@@ -4816,6 +4842,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	var FixedDataTableHelper = __webpack_require__(62);
 	var React = __webpack_require__(29);
+	var ReactDOM = __webpack_require__(32);
 	var FixedDataTableCell = __webpack_require__(66);
 
 	var cx = __webpack_require__(49);
@@ -4866,30 +4893,50 @@ return /******/ (function(modules) { // webpackBootstrap
 	    zIndex: PropTypes.number.isRequired
 	  },
 
+	  componentWillReceiveProps: function componentWillReceiveProps(newProps) {
+	    if (newProps.dragScrollX && newProps.dragScrollX !== this.props.dragScrollX) {
+	      this._onColumnReorderMove(newProps.dragScrollX - this.props.dragScrollX, 0, null, null, true);
+	    }
+	  },
+
 	  _onColumnReorderStart: function _onColumnReorderStart(index, event) {
 	    if (event.isDefaultPrevented()) {
 	      return;
 	    }
-	    this.mouseMoveTracker = new DOMMouseMoveTracker(this._onColumnReorderMove, this._onColumnReorderEnd, document.body);
+	    this.mouseMoveTracker = new DOMMouseMoveTracker(this._onColumnReorderMove, this._onColumnReorderEnd, window);
 	    this.mouseMoveTracker.captureMouseMoves(event);
 
 	    this.dragOffset = 0;
+	    this.startingX = event.clientX;
+
+	    var boundaryNode = ReactDOM.findDOMNode(this);
+	    var className = cx('fixedDataTableLayout/header');
+	    while (boundaryNode.classList.contains(className) === false) {
+	      boundaryNode = boundaryNode.parentNode;
+	    }
 
 	    this.setState({
 	      reorderColumnIndex: index,
 	      reorderColumnWidth: this.props.columns[index].props.width,
 	      dragOffset: 0,
+	      boundary: boundaryNode.getBoundingClientRect(),
 	      isInitialDrag: true
 	    });
 	  },
 
-	  componentWillReceiveProps: function componentWillReceiveProps(newProps) {
-	    if (newProps.dragScrollX && newProps.dragScrollX !== this.props.dragScrollX) {
-	      this._onColumnReorderMove(newProps.dragScrollX - this.props.dragScrollX, 0, true);
-	    }
-	  },
+	  _onColumnReorderMove: function _onColumnReorderMove(deltaX, deltaY, x, y, isFromProps) {
+	    // console.log('_onColumnReorderMove', deltaX, deltaY, this.props);
 
-	  _onColumnReorderMove: function _onColumnReorderMove(deltaX, deltaY, isFromProps) {
+	    // console.log(event && event.clientX, this.state.boundary);
+	    if (x && x > this.state.boundary.right) {
+	      // console.log('returning, to the right');
+	      return;
+	    }
+	    if (x && x < this.state.boundary.left) {
+	      // console.log('returning, to the left');
+	      return;
+	    }
+
 	    if (!this.curtain && !isFromProps) {
 	      var curtain = document.createElement('div');
 	      curtain.style.zIndex = 10000000;
@@ -4905,6 +4952,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	      curtain.className = cx('fixedDataTable/columnReorderCurtain');
 	      document.body.appendChild(curtain);
 	      this.curtain = curtain;
+	    }
+	    if (this.dragFromScroll === undefined) {
+	      this.dragFromScroll = 0;
+	    }
+
+	    if (isFromProps) {
+	      this.dragFromScroll += deltaX;
+	      // console.log('from scroll ', deltaX, deltaY);
 	    }
 
 	    var reorderColumnIndex = this.state.reorderColumnIndex;
@@ -4929,7 +4984,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	      }
 	      return 0;
 	    });
-	    this.dragOffset = this.dragOffset + deltaX;
+	    if (x) {
+	      this.dragOffset = x - this.startingX + this.dragFromScroll;
+	    } else {
+	      this.dragOffset = this.dragOffset + deltaX;
+	    }
 	    this.setState({
 	      dragOffset: this.dragOffset,
 	      isInitialDrag: false,
@@ -4938,6 +4997,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	  },
 
 	  _onColumnReorderEnd: function _onColumnReorderEnd() {
+	    var _this = this;
+
 	    this.mouseMoveTracker.releaseMouseMoves();
 	    var columnBeforeIndex, columnAfterIndex;
 	    var shifts = this.state.positionShifts.reduce(function (a, b) {
@@ -4965,15 +5026,20 @@ return /******/ (function(modules) { // webpackBootstrap
 	      if (columnAfterIndex !== this.props.columns.length) {
 	        columnAfter = this.props.columns[columnAfterIndex].props.columnKey;
 	      }
-
-	      this.props.onColumnReorder({
-	        columnBefore: columnBefore,
-	        columnBeforeIndex: columnBeforeIndex,
-	        columnAfter: columnAfter,
-	        columnAfterIndex: columnAfterIndex,
-	        reorderColumn: reorderColumn,
-	        reorderColumnIndex: reorderColumnIndex
-	      });
+	      // I think the setState below needs to do something
+	      // async before onColumnReorder is called. This
+	      // seems to fix unusual rendering issues when the
+	      // table is very heavy.
+	      setTimeout(function () {
+	        _this.props.onColumnReorder({
+	          columnBefore: columnBefore,
+	          columnBeforeIndex: columnBeforeIndex,
+	          columnAfter: columnAfter,
+	          columnAfterIndex: columnAfterIndex,
+	          reorderColumn: reorderColumn,
+	          reorderColumnIndex: reorderColumnIndex
+	        });
+	      }, 4);
 	    }
 	    if (this.curtain) {
 	      var curtain = this.curtain;
@@ -4983,6 +5049,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        document.body.removeChild(curtain);
 	      }, 100);
 	    }
+	    this.dragFromScroll = 0;
 
 	    this.setState(this.getInitialState());
 	  },
