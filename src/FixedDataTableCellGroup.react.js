@@ -86,7 +86,6 @@ var FixedDataTableCellGroupImpl = React.createClass({
 
   _onColumnReorderMove (deltaX) {
     if (!this.curtain) {
-      console.log('adding curtain');
       var curtain = document.createElement('div');
       curtain.style.zIndex = 10000000;
       curtain.style.position = 'fixed';
@@ -99,8 +98,9 @@ var FixedDataTableCellGroupImpl = React.createClass({
         curtain.style.cursor = '-webkit-grabbing';
       }
       curtain.className = cx('fixedDataTable/columnReorderCurtain');
-      document.body.appendChild(curtain);
       this.curtain = curtain;
+    } else if (!this.curtain.parentNode) {
+      document.body.appendChild(this.curtain);
     }
 
     var reorderColumnIndex = this.state.reorderColumnIndex;
@@ -134,16 +134,26 @@ var FixedDataTableCellGroupImpl = React.createClass({
   },
 
   _onColumnReorderEnd () {
-    console.log('done!');
     this.mouseMoveTracker.releaseMouseMoves();
     if (this.curtain) {
       var curtain = this.curtain;
       this.curtain = null;
+
+      if (curtain.parentNode) {
       // this stops the mouseUp from triggering a click event.
-      setTimeout(function () {
-        document.body.removeChild(curtain);
-      }, 100);
+        setTimeout(function () {
+          document.body.removeChild(curtain);
+        }, 100);
+      } else {
+        setTimeout(() => {
+          this.setState(this.getInitialState());
+        }, 1000);
+        return;
+      }
+    } else {
+      return;
     }
+
     var columnBeforeIndex, columnAfterIndex;
     var shifts = this.state.positionShifts.reduce(function (a, b) { return a + b; });
     if (shifts > 0) {
